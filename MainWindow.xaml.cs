@@ -1,0 +1,506 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media.Imaging;
+
+namespace AudioBookViewer
+{
+    public partial class MainWindow : Window
+    {
+        private ObservableCollection<AudioBook> allBooks;
+        private ObservableCollection<AudioBook> filteredBooks;
+        private string currentSortColumn = "";
+
+        public MainWindow()
+        {
+            InitializeComponent();
+            allBooks = new ObservableCollection<AudioBook>();
+            filteredBooks = new ObservableCollection<AudioBook>();
+            BookListBox.ItemsSource = filteredBooks;
+            LoadAudioBooks();
+        }
+
+        private void LoadAudioBooks()
+        {
+            try
+            {
+                string csvPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ALE-spreadsheet-library-v1.csv");
+                
+                if (!File.Exists(csvPath))
+                {
+                    MessageBox.Show($"CSV file not found at: {csvPath}\n\nPlease ensure the ALE-spreadsheet-library-v1.csv file is in the application directory.",
+                                    "File Not Found", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                var lines = File.ReadAllLines(csvPath);
+                
+                // Skip header row
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    var book = ParseCsvLine(lines[i]);
+                    if (book != null)
+                    {
+                        allBooks.Add(book);
+                        filteredBooks.Add(book);
+                    }
+                }
+
+                Title = $"Audio Book Collection ({allBooks.Count} books)";
+                
+                // Initialize row backgrounds
+                UpdateRowBackgrounds();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading audio books: {ex.Message}", 
+                                "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private AudioBook? ParseCsvLine(string line)
+        {
+            try
+            {
+                var fields = new List<string>();
+                bool inQuotes = false;
+                string currentField = "";
+
+                for (int i = 0; i < line.Length; i++)
+                {
+                    char c = line[i];
+
+                    if (c == '"')
+                    {
+                        inQuotes = !inQuotes;
+                    }
+                    else if (c == ',' && !inQuotes)
+                    {
+                        fields.Add(currentField);
+                        currentField = "";
+                    }
+                    else
+                    {
+                        currentField += c;
+                    }
+                }
+                fields.Add(currentField); // Add the last field
+
+                // ALE-spreadsheet-library-v1.csv format has 41 columns
+                if (fields.Count >= 41)
+                {
+                    var (seriesName, bookNumber) = ParseSeriesInfo(fields[3].Trim(), fields[4].Trim());
+                    
+                    return new AudioBook
+                    {
+                        Title = fields[1].Trim(),
+                        TitleShort = fields[2].Trim(),
+                        Series = seriesName,
+                        BookNumber = bookNumber,
+                        Blurb = fields[5].Trim(),
+                        Author = fields[6].Trim(),
+                        Narrator = fields[7].Trim(),
+                        Tags = fields[8].Trim(),
+                        Categories = fields[9].Trim(),
+                        ParentCategory = fields[10].Trim(),
+                        ChildCategory = fields[11].Trim(),
+                        Length = fields[12].Trim(),
+                        Progress = fields[13].Trim(),
+                        ReleaseDate = fields[14].Trim(),
+                        Publishers = fields[15].Trim(),
+                        MyRating = fields[16].Trim(),
+                        Rating = fields[17].Trim(),
+                        Ratings = fields[18].Trim(),
+                        Favorite = fields[19].Trim(),
+                        Format = fields[20].Trim(),
+                        Language = fields[21].Trim(),
+                        ASIN = fields[29].Trim(),
+                        ISBN10 = fields[30].Trim(),
+                        ISBN13 = fields[31].Trim(),
+                        Summary = fields[32].Trim(),
+                        StorePageUrl = fields[34].Trim(),
+                        Cover = fields[37].Trim(),
+                        SearchInGoodreads = fields[38].Trim(),
+                        Subtitle = fields[39].Trim(),
+                        CollectionIds = fields[40].Trim()
+                    };
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error parsing line: {ex.Message}");
+            }
+
+            return null;
+        }
+
+        private (string seriesName, string bookNumber) ParseSeriesInfo(string seriesText, string bookNumberText)
+        {
+            string seriesName = string.Empty;
+            string bookNumber = bookNumberText.Trim();
+
+            if (string.IsNullOrWhiteSpace(seriesText))
+            {
+                return (string.Empty, bookNumber);
+            }
+
+            // Pattern to match "(book X)" where X is a number - new format
+            var bookPattern = @"\s*\(book\s+\d+\)";
+            var match = Regex.Match(seriesText, bookPattern, RegexOptions.IgnoreCase);
+
+            if (match.Success)
+            {
+                // Remove the "(book X)" part from the series name
+                seriesName = Regex.Replace(seriesText, bookPattern, "", RegexOptions.IgnoreCase).Trim();
+            }
+            else
+            {
+                // No book pattern found, use the series text as is
+                seriesName = seriesText.Trim();
+            }
+
+            return (seriesName, bookNumber);
+        }
+
+        private void DisplaySummaryAsHtml(string htmlContent)
+        {
+            if (string.IsNullOrWhiteSpace(htmlContent))
+            {
+                SummaryBrowser.NavigateToString("<html><body style='font-family: Segoe UI, Arial, sans-serif; font-size: 16px; margin: 10px;'><p><i>(Not specified)</i></p></body></html>");
+            }
+            else
+            {
+                // Wrap the HTML content in a proper HTML document with styling
+                string htmlDocument = $@"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8'>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 16px;
+            margin: 10px;
+            color: #333;
+            line-height: 1.6;
+        }}
+        p {{
+            margin: 0 0 10px 0;
+        }}
+        br {{
+            line-height: 1.8;
+        }}
+    </style>
+</head>
+<body>
+    {htmlContent}
+</body>
+</html>";
+                SummaryBrowser.NavigateToString(htmlDocument);
+            }
+        }
+
+        private void LoadCoverImage(string imageUrl)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(imageUrl))
+                {
+                    CoverImage.Source = null;
+                    return;
+                }
+
+                // Create BitmapImage from URL
+                BitmapImage bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.UriSource = new Uri(imageUrl, UriKind.Absolute);
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                
+                CoverImage.Source = bitmap;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error loading cover image: {ex.Message}");
+                CoverImage.Source = null;
+            }
+        }
+
+        private void BookListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (BookListBox.SelectedItem is AudioBook selectedBook)
+            {
+                // Show details panel and hide placeholder
+                DetailsPanel.Visibility = Visibility.Visible;
+                NoSelectionText.Visibility = Visibility.Collapsed;
+
+                // Helper method to display value or placeholder
+                string DisplayValue(string value, string placeholder = "(Not specified)") =>
+                    string.IsNullOrWhiteSpace(value) ? placeholder : value;
+
+                // Update all detail fields
+                TitleText.Text = DisplayValue(selectedBook.Title);
+                TitleShortText.Text = DisplayValue(selectedBook.TitleShort);
+                AuthorText.Text = DisplayValue(selectedBook.Author);
+                NarratorText.Text = DisplayValue(selectedBook.Narrator);
+                SeriesText.Text = DisplayValue(selectedBook.Series, "(Not part of a series)");
+                BookNumberText.Text = DisplayValue(selectedBook.BookNumber);
+                SubtitleText.Text = DisplayValue(selectedBook.Subtitle);
+                BlurbText.Text = DisplayValue(selectedBook.Blurb);
+                
+                // Display Summary as HTML
+                DisplaySummaryAsHtml(selectedBook.Summary);
+                
+                LengthText.Text = DisplayValue(selectedBook.Length);
+                ProgressText.Text = DisplayValue(selectedBook.Progress);
+                ReleaseDateText.Text = DisplayValue(selectedBook.ReleaseDate);
+                PublishersText.Text = DisplayValue(selectedBook.Publishers);
+                RatingText.Text = DisplayValue(selectedBook.Rating);
+                RatingsText.Text = DisplayValue(selectedBook.Ratings);
+                MyRatingText.Text = DisplayValue(selectedBook.MyRating);
+                FavoriteText.Text = DisplayValue(selectedBook.Favorite);
+                CategoriesText.Text = DisplayValue(selectedBook.Categories);
+                ParentCategoryText.Text = DisplayValue(selectedBook.ParentCategory);
+                ChildCategoryText.Text = DisplayValue(selectedBook.ChildCategory);
+                TagsText.Text = DisplayValue(selectedBook.Tags);
+                FormatText.Text = DisplayValue(selectedBook.Format);
+                LanguageText.Text = DisplayValue(selectedBook.Language);
+                ASINText.Text = DisplayValue(selectedBook.ASIN);
+                ISBN10Text.Text = DisplayValue(selectedBook.ISBN10);
+                ISBN13Text.Text = DisplayValue(selectedBook.ISBN13);
+                StorePageUrlText.Text = DisplayValue(selectedBook.StorePageUrl);
+                SearchInGoodreadsText.Text = DisplayValue(selectedBook.SearchInGoodreads);
+                CollectionIdsText.Text = DisplayValue(selectedBook.CollectionIds);
+                
+                // Load cover image from URL
+                LoadCoverImage(selectedBook.Cover);
+            }
+            else
+            {
+                // Hide details panel and show placeholder
+                DetailsPanel.Visibility = Visibility.Collapsed;
+                NoSelectionText.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string searchText = SearchBox.Text.ToLower();
+            
+            filteredBooks.Clear();
+            
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                // Show all books if search is empty
+                foreach (var book in allBooks)
+                {
+                    filteredBooks.Add(book);
+                }
+            }
+            else
+            {
+                // Filter books by title or author
+                foreach (var book in allBooks)
+                {
+                    if (book.Title.ToLower().Contains(searchText) || 
+                        book.Author.ToLower().Contains(searchText))
+                    {
+                        filteredBooks.Add(book);
+                    }
+                }
+            }
+            
+            // Update row backgrounds after filtering
+            UpdateRowBackgrounds();
+        }
+
+        private void BookListBox_Sorting(object sender, DataGridSortingEventArgs e)
+        {
+            e.Handled = true;
+
+            var column = e.Column;
+            var sortPropertyName = column.SortMemberPath;
+
+            // Get the collection view
+            var view = CollectionViewSource.GetDefaultView(BookListBox.ItemsSource);
+            
+            if (view == null)
+                return;
+
+            // Determine the sort direction
+            ListSortDirection direction = (column.SortDirection != ListSortDirection.Ascending) 
+                ? ListSortDirection.Ascending 
+                : ListSortDirection.Descending;
+
+            // Clear existing sort descriptions and custom sort
+            view.SortDescriptions.Clear();
+            
+            // Clear custom sort if it's a ListCollectionView
+            if (view is ListCollectionView listView)
+            {
+                listView.CustomSort = null;
+            }
+
+            // Apply multi-level sorting based on the column
+            if (sortPropertyName == "Author")
+            {
+                // Primary: Author, Secondary: Series (with custom handling), Tertiary: BookNumberValue (numeric), Quaternary: Title
+                view.SortDescriptions.Add(new SortDescription("Author", direction));
+                // Use SeriesSortKey with ascending to push empty series to end
+                view.SortDescriptions.Add(new SortDescription("SeriesSortKey", ListSortDirection.Ascending));
+                view.SortDescriptions.Add(new SortDescription("BookNumberValue", direction));
+                view.SortDescriptions.Add(new SortDescription("Title", direction));
+            }
+            else if (sortPropertyName == "Series")
+            {
+                // Apply custom sorting: non-empty series in requested direction, empty series always at end
+                // CustomSort handles all comparison logic including secondary sorts
+                if (view is ListCollectionView listCollectionView)
+                {
+                    listCollectionView.CustomSort = new SeriesComparer(direction);
+                }
+            }
+            else if (sortPropertyName == "BookNumber")
+            {
+                // Primary: BookNumberValue (numeric), Secondary: Series (with custom handling), Tertiary: Author, Quaternary: Title
+                view.SortDescriptions.Add(new SortDescription("BookNumberValue", direction));
+                view.SortDescriptions.Add(new SortDescription("SeriesSortKey", ListSortDirection.Ascending));
+                view.SortDescriptions.Add(new SortDescription("Author", direction));
+                view.SortDescriptions.Add(new SortDescription("Title", direction));
+            }
+            else if (sortPropertyName == "Title")
+            {
+                // Primary: Title, Secondary: Author, Tertiary: Series (with custom handling)
+                view.SortDescriptions.Add(new SortDescription("Title", direction));
+                view.SortDescriptions.Add(new SortDescription("Author", direction));
+                view.SortDescriptions.Add(new SortDescription("SeriesSortKey", ListSortDirection.Ascending));
+            }
+
+            // Update the column sort direction indicator
+            column.SortDirection = direction;
+
+            // Clear sort direction indicators from other columns
+            foreach (var col in BookListBox.Columns)
+            {
+                if (col != column)
+                {
+                    col.SortDirection = null;
+                }
+            }
+
+            // Refresh the view
+            view.Refresh();
+            
+            // Store the current sort column
+            currentSortColumn = sortPropertyName ?? "";
+            
+            // Update row backgrounds based on author grouping if sorted by author
+            UpdateRowBackgrounds();
+        }
+
+        private void UpdateRowBackgrounds()
+        {
+            // Apply author-based grouping only when sorted by Author
+            if (currentSortColumn == "Author")
+            {
+                string previousAuthor = "";
+                bool useAlternateColor = false;
+                string color1 = "White";
+                string color2 = "#F5F5F5"; // WhiteSmoke
+
+                foreach (var book in filteredBooks)
+                {
+                    if (book.Author != previousAuthor)
+                    {
+                        // Author changed, toggle the color
+                        useAlternateColor = !useAlternateColor;
+                        previousAuthor = book.Author;
+                    }
+
+                    book.RowBackground = useAlternateColor ? color2 : color1;
+                }
+            }
+            else
+            {
+                // For other sorts, use standard alternating rows
+                for (int i = 0; i < filteredBooks.Count; i++)
+                {
+                    filteredBooks[i].RowBackground = (i % 2 == 0) ? "White" : "#F5F5F5";
+                }
+            }
+        }
+    }
+
+    // Custom comparer for Series sorting that keeps empty series at the end
+    public class SeriesComparer : System.Collections.IComparer
+    {
+        private readonly ListSortDirection _direction;
+
+        public SeriesComparer(ListSortDirection direction)
+        {
+            _direction = direction;
+        }
+
+        public int Compare(object? x, object? y)
+        {
+            if (x is not AudioBook bookX || y is not AudioBook bookY)
+                return 0;
+
+            bool xEmpty = string.IsNullOrWhiteSpace(bookX.Series);
+            bool yEmpty = string.IsNullOrWhiteSpace(bookY.Series);
+
+            // Both empty - equal
+            if (xEmpty && yEmpty)
+                return 0;
+
+            // X empty - X goes after Y (empty always at end)
+            if (xEmpty)
+                return 1;
+
+            // Y empty - Y goes after X (empty always at end)
+            if (yEmpty)
+                return -1;
+
+            // Neither empty - sort normally by direction
+            int comparison = string.Compare(bookX.Series, bookY.Series, StringComparison.OrdinalIgnoreCase);
+            
+            // Apply direction
+            if (_direction == ListSortDirection.Descending)
+                comparison = -comparison;
+
+            // If series are equal, compare by book number
+            if (comparison == 0)
+            {
+                comparison = bookX.BookNumberValue.CompareTo(bookY.BookNumberValue);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            // If still equal, compare by author
+            if (comparison == 0)
+            {
+                comparison = string.Compare(bookX.Author, bookY.Author, StringComparison.OrdinalIgnoreCase);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            // If still equal, compare by title
+            if (comparison == 0)
+            {
+                comparison = string.Compare(bookX.Title, bookY.Title, StringComparison.OrdinalIgnoreCase);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            return comparison;
+        }
+    }
+}
+
