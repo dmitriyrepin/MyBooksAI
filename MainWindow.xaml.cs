@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace AudioBookViewer
@@ -281,12 +283,18 @@ namespace AudioBookViewer
                 
                 // Load cover image from URL
                 LoadCoverImage(selectedBook.Cover);
+                
+                // Set DetailsPanel background to match the selected row's author color
+                var converter = new AuthorToColorConverter();
+                var brush = converter.Convert(selectedBook.Author, typeof(SolidColorBrush), null!, CultureInfo.CurrentCulture) as SolidColorBrush;
+                DetailsPanel.Background = brush ?? Brushes.White;
             }
             else
             {
                 // Hide details panel and show placeholder
                 DetailsPanel.Visibility = Visibility.Collapsed;
                 NoSelectionText.Visibility = Visibility.Visible;
+                DetailsPanel.Background = Brushes.White;
             }
         }
 
@@ -500,6 +508,59 @@ namespace AudioBookViewer
             }
 
             return comparison;
+        }
+    }
+
+    // Converter to assign distinct colors to each author
+    public class AuthorToColorConverter : IValueConverter
+    {
+        private static readonly Dictionary<string, SolidColorBrush> AuthorColors = new Dictionary<string, SolidColorBrush>();
+        
+        private static readonly Color[] ColorPalette = new Color[]
+        {
+            Color.FromRgb(255, 250, 240), // FloralWhite
+            Color.FromRgb(240, 248, 255), // AliceBlue
+            Color.FromRgb(245, 255, 250), // MintCream
+            Color.FromRgb(255, 250, 250), // Snow
+            Color.FromRgb(255, 248, 220), // Cornsilk
+            Color.FromRgb(250, 250, 210), // LightGoldenrodYellow
+            Color.FromRgb(255, 239, 213), // PapayaWhip
+            Color.FromRgb(255, 245, 238), // Seashell
+            Color.FromRgb(245, 245, 220), // Beige
+            Color.FromRgb(230, 230, 250), // Lavender
+            Color.FromRgb(240, 255, 240), // Honeydew
+            Color.FromRgb(248, 248, 255), // GhostWhite
+            Color.FromRgb(240, 255, 255), // Azure
+            Color.FromRgb(255, 240, 245), // LavenderBlush
+            Color.FromRgb(245, 245, 245), // WhiteSmoke
+            Color.FromRgb(255, 255, 240), // Ivory
+            Color.FromRgb(240, 230, 140), // Khaki (lighter)
+            Color.FromRgb(255, 228, 225), // MistyRose
+            Color.FromRgb(255, 235, 205), // BlanchedAlmond
+            Color.FromRgb(250, 235, 215), // AntiqueWhite
+        };
+
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value is string author && !string.IsNullOrWhiteSpace(author))
+            {
+                if (!AuthorColors.ContainsKey(author))
+                {
+                    // Assign a color based on hash of author name for consistency
+                    int hash = author.GetHashCode();
+                    int colorIndex = Math.Abs(hash) % ColorPalette.Length;
+                    AuthorColors[author] = new SolidColorBrush(ColorPalette[colorIndex]);
+                }
+                
+                return AuthorColors[author];
+            }
+            
+            return Brushes.White;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            throw new NotImplementedException();
         }
     }
 }

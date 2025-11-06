@@ -1,8 +1,12 @@
 <Window x:Class="AudioBookViewer.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:AudioBookViewer"
         Title="Audio Book Collection" Height="600" Width="1200"
         WindowStartupLocation="CenterScreen">
+    <Window.Resources>
+        <local:AuthorToColorConverter x:Key="AuthorToColorConverter"/>
+    </Window.Resources>
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="600"/>
@@ -56,13 +60,56 @@
                       RowHeaderWidth="0"
                       CanUserResizeRows="False"
                       CanUserReorderColumns="False"
-                      SelectionUnit="FullRow">
+                      SelectionUnit="FullRow"
+                      RowHeight="52">
                 <DataGrid.RowStyle>
                     <Style TargetType="DataGridRow">
-                        <Setter Property="Background" Value="{Binding RowBackground}"/>
+                        <Setter Property="Background">
+                            <Setter.Value>
+                                <Binding Path="Author" Converter="{StaticResource AuthorToColorConverter}"/>
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="FontWeight" Value="Normal"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background">
+                                    <Setter.Value>
+                                        <Binding Path="Author" Converter="{StaticResource AuthorToColorConverter}"/>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="FontWeight" Value="Bold"/>
+                                <Setter Property="Foreground" Value="Black"/>
+                            </Trigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGrid.RowStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                <Setter Property="Foreground" Value="Black"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
                 <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Cover" Width="45" CanUserSort="False">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Image MaxWidth="40" Height="48" Stretch="Uniform">
+                                    <Image.Source>
+                                        <Binding Path="Cover">
+                                            <Binding.TargetNullValue>
+                                                <x:Null/>
+                                            </Binding.TargetNullValue>
+                                        </Binding>
+                                    </Image.Source>
+                                </Image>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Author" Binding="{Binding Author}" Width="150" SortMemberPath="Author"/>
                     <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" SortMemberPath="Title"/>
                     <DataGridTextColumn Header="Series" Binding="{Binding Series}" Width="180" SortMemberPath="Series"/>
