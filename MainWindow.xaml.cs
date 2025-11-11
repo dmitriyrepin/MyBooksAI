@@ -19,6 +19,7 @@ namespace AudioBookViewer
         private ObservableCollection<AudioBook> allBooks;
         private ObservableCollection<AudioBook> filteredBooks;
         private string currentSortColumn = "";
+        private bool isUpdatingFilters = false; // Prevent recursive filter updates
 
         public MainWindow()
         {
@@ -288,6 +289,13 @@ namespace AudioBookViewer
                 var converter = new AuthorToColorConverter();
                 var brush = converter.Convert(selectedBook.Author, typeof(SolidColorBrush), null!, CultureInfo.CurrentCulture) as SolidColorBrush;
                 DetailsPanel.Background = brush ?? Brushes.White;
+                
+                // Enable filter toggle buttons
+                SameAuthorToggle.IsEnabled = true;
+                SameSeriesToggle.IsEnabled = !string.IsNullOrWhiteSpace(selectedBook.Series);
+                
+                // Update search icon color (removes light green when clicking on book)
+                UpdateSearchIconColor();
             }
             else
             {
@@ -295,38 +303,195 @@ namespace AudioBookViewer
                 DetailsPanel.Visibility = Visibility.Collapsed;
                 NoSelectionText.Visibility = Visibility.Visible;
                 DetailsPanel.Background = Brushes.White;
+                
+                // Disable filter toggle buttons
+                SameAuthorToggle.IsEnabled = false;
+                SameSeriesToggle.IsEnabled = false;
+                
+                // Update search icon color
+                UpdateSearchIconColor();
             }
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
         {
-            string searchText = SearchBox.Text.ToLower();
+            if (isUpdatingFilters) return; // Prevent recursive calls
+            
+            // Update search icon background color
+            UpdateSearchIconColor();
+            
+            // If user types in search box, uncheck both filter toggles (mutually exclusive)
+            if (!string.IsNullOrWhiteSpace(SearchBox.Text))
+            {
+                isUpdatingFilters = true;
+                SameAuthorToggle.IsChecked = false;
+                SameSeriesToggle.IsChecked = false;
+                // Clear selection when using search filter
+                BookListBox.SelectedItem = null;
+                isUpdatingFilters = false;
+            }
+            
+            ApplyFilters();
+        }
+
+        private void UpdateSearchIconColor()
+        {
+            // Update search icon background color based on text content only
+            if (!string.IsNullOrWhiteSpace(SearchBox.Text))
+            {
+                // Has text: LimeGreen
+                SearchIconBackground.Background = new SolidColorBrush(Color.FromRgb(50, 205, 50)); // LimeGreen
+            }
+            else
+            {
+                // No text: LightGray
+                SearchIconBackground.Background = new SolidColorBrush(Color.FromRgb(211, 211, 211)); // LightGray
+            }
+        }
+
+        private void SearchIcon_MouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            // Clear the search textbox when the search icon is clicked
+            SearchBox.Text = "";
+        }
+
+        private void ApplyFilters()
+        {
+            // Save the current selection
+            var currentSelection = BookListBox.SelectedItem as AudioBook;
             
             filteredBooks.Clear();
             
-            if (string.IsNullOrWhiteSpace(searchText))
+            // Apply filters - mutually exclusive (only one at a time)
+            foreach (var book in allBooks)
             {
-                // Show all books if search is empty
-                foreach (var book in allBooks)
+                bool includeBook = false;
+
+                // Priority 1: "Same Author" filter - filter by author ONLY
+                if (SameAuthorToggle.IsChecked == true)
+                {
+                    if (currentSelection != null)
+                    {
+                        string bookAuthor = book.Author?.Trim() ?? "";
+                        string filterAuthor = currentSelection.Author?.Trim() ?? "";
+                        
+                        if (string.Equals(bookAuthor, filterAuthor, StringComparison.OrdinalIgnoreCase))
+                        {
+                            includeBook = true;
+                        }
+                    }
+                }
+                // Priority 2: "Same Series" filter - filter by series ONLY
+                else if (SameSeriesToggle.IsChecked == true)
+                {
+                    if (currentSelection != null)
+                    {
+                        string bookSeries = book.Series?.Trim() ?? "";
+                        string filterSeries = currentSelection.Series?.Trim() ?? "";
+                        
+                        if (!string.IsNullOrWhiteSpace(filterSeries) &&
+                            string.Equals(bookSeries, filterSeries, StringComparison.OrdinalIgnoreCase))
+                        {
+                            includeBook = true;
+                        }
+                    }
+                }
+                // Priority 3: Search filter - filter by title or author text search
+                else if (!string.IsNullOrWhiteSpace(SearchBox.Text))
+                {
+                    string searchText = SearchBox.Text.ToLower();
+                    if (book.Title?.ToLower().Contains(searchText) == true || 
+                        book.Author?.ToLower().Contains(searchText) == true)
+                    {
+                        includeBook = true;
+                    }
+                }
+                // No filter active - show all books
+                else
+                {
+                    includeBook = true;
+                }
+
+                if (includeBook)
                 {
                     filteredBooks.Add(book);
                 }
             }
-            else
+            
+            // Restore the selection if the book is still in the filtered list
+            if (currentSelection != null && filteredBooks.Contains(currentSelection))
             {
-                // Filter books by title or author
-                foreach (var book in allBooks)
-                {
-                    if (book.Title.ToLower().Contains(searchText) || 
-                        book.Author.ToLower().Contains(searchText))
-                    {
-                        filteredBooks.Add(book);
-                    }
-                }
+                BookListBox.SelectedItem = currentSelection;
             }
             
             // Update row backgrounds after filtering
             UpdateRowBackgrounds();
+        }
+
+        private void SameAuthorToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (isUpdatingFilters) return; // Prevent recursive calls
+            
+            // Check if a book is selected when enabling the filter
+            if (SameAuthorToggle.IsChecked == true)
+            {
+                var selectedBook = BookListBox.SelectedItem as AudioBook;
+                if (selectedBook == null)
+                {
+                    MessageBox.Show("Please select a book first to filter by author.", 
+                                    "No Book Selected", 
+                                    MessageBoxButton.OK, 
+                                    MessageBoxImage.Warning);
+                    SameAuthorToggle.IsChecked = false;
+                    return;
+                }
+            }
+            
+            isUpdatingFilters = true;
+            
+            // Make toggles mutually exclusive with each other and with search
+            if (SameAuthorToggle.IsChecked == true)
+            {
+                // Turn off other filters
+                SameSeriesToggle.IsChecked = false;
+                SearchBox.Text = ""; // Clear search box
+            }
+            
+            isUpdatingFilters = false;
+            ApplyFilters();
+        }
+
+        private void SameSeriesToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (isUpdatingFilters) return; // Prevent recursive calls
+            
+            // Check if a book is selected when enabling the filter
+            if (SameSeriesToggle.IsChecked == true)
+            {
+                var selectedBook = BookListBox.SelectedItem as AudioBook;
+                if (selectedBook == null)
+                {
+                    MessageBox.Show("Please select a book first to filter by series.", 
+                                    "No Book Selected", 
+                                    MessageBoxButton.OK, 
+                                    MessageBoxImage.Warning);
+                    SameSeriesToggle.IsChecked = false;
+                    return;
+                }
+            }
+            
+            isUpdatingFilters = true;
+            
+            // Make toggles mutually exclusive with each other and with search
+            if (SameSeriesToggle.IsChecked == true)
+            {
+                // Turn off other filters
+                SameAuthorToggle.IsChecked = false;
+                SearchBox.Text = ""; // Clear search box
+            }
+            
+            isUpdatingFilters = false;
+            ApplyFilters();
         }
 
         private void BookListBox_Sorting(object sender, DataGridSortingEventArgs e)
@@ -389,6 +554,29 @@ namespace AudioBookViewer
                 view.SortDescriptions.Add(new SortDescription("Title", direction));
                 view.SortDescriptions.Add(new SortDescription("Author", direction));
                 view.SortDescriptions.Add(new SortDescription("SeriesSortKey", ListSortDirection.Ascending));
+            }
+            else if (sortPropertyName == "Narrator")
+            {
+                // Primary: Narrator, Secondary: Author, Tertiary: Title
+                view.SortDescriptions.Add(new SortDescription("Narrator", direction));
+                view.SortDescriptions.Add(new SortDescription("Author", direction));
+                view.SortDescriptions.Add(new SortDescription("Title", direction));
+            }
+            else if (sortPropertyName == "Rating")
+            {
+                // Apply custom sorting: non-empty ratings in requested direction, empty ratings always at end
+                if (view is ListCollectionView listCollectionView)
+                {
+                    listCollectionView.CustomSort = new RatingComparer(direction);
+                }
+            }
+            else if (sortPropertyName == "Ratings")
+            {
+                // Apply custom sorting: non-empty ratings count in requested direction, empty always at end
+                if (view is ListCollectionView listCollectionView)
+                {
+                    listCollectionView.CustomSort = new RatingsComparer(direction);
+                }
             }
 
             // Update the column sort direction indicator
@@ -495,6 +683,120 @@ namespace AudioBookViewer
             if (comparison == 0)
             {
                 comparison = string.Compare(bookX.Author, bookY.Author, StringComparison.OrdinalIgnoreCase);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            // If still equal, compare by title
+            if (comparison == 0)
+            {
+                comparison = string.Compare(bookX.Title, bookY.Title, StringComparison.OrdinalIgnoreCase);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            return comparison;
+        }
+    }
+
+    // Custom comparer for Rating (Stars) sorting that keeps empty ratings at the end
+    public class RatingComparer : System.Collections.IComparer
+    {
+        private readonly ListSortDirection _direction;
+
+        public RatingComparer(ListSortDirection direction)
+        {
+            _direction = direction;
+        }
+
+        public int Compare(object? x, object? y)
+        {
+            if (x is not AudioBook bookX || y is not AudioBook bookY)
+                return 0;
+
+            bool xEmpty = string.IsNullOrWhiteSpace(bookX.Rating);
+            bool yEmpty = string.IsNullOrWhiteSpace(bookY.Rating);
+
+            // Both empty - equal
+            if (xEmpty && yEmpty)
+                return 0;
+
+            // X empty - X goes after Y (empty always at end)
+            if (xEmpty)
+                return 1;
+
+            // Y empty - Y goes after X (empty always at end)
+            if (yEmpty)
+                return -1;
+
+            // Neither empty - sort by numeric value
+            int comparison = bookX.RatingSortValue.CompareTo(bookY.RatingSortValue);
+            
+            // Apply direction
+            if (_direction == ListSortDirection.Descending)
+                comparison = -comparison;
+
+            // If ratings are equal, compare by ratings count
+            if (comparison == 0)
+            {
+                comparison = bookX.RatingsSortValue.CompareTo(bookY.RatingsSortValue);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            // If still equal, compare by title
+            if (comparison == 0)
+            {
+                comparison = string.Compare(bookX.Title, bookY.Title, StringComparison.OrdinalIgnoreCase);
+                if (_direction == ListSortDirection.Descending)
+                    comparison = -comparison;
+            }
+
+            return comparison;
+        }
+    }
+
+    // Custom comparer for Ratings (count) sorting that keeps empty ratings at the end
+    public class RatingsComparer : System.Collections.IComparer
+    {
+        private readonly ListSortDirection _direction;
+
+        public RatingsComparer(ListSortDirection direction)
+        {
+            _direction = direction;
+        }
+
+        public int Compare(object? x, object? y)
+        {
+            if (x is not AudioBook bookX || y is not AudioBook bookY)
+                return 0;
+
+            bool xEmpty = string.IsNullOrWhiteSpace(bookX.Ratings);
+            bool yEmpty = string.IsNullOrWhiteSpace(bookY.Ratings);
+
+            // Both empty - equal
+            if (xEmpty && yEmpty)
+                return 0;
+
+            // X empty - X goes after Y (empty always at end)
+            if (xEmpty)
+                return 1;
+
+            // Y empty - Y goes after X (empty always at end)
+            if (yEmpty)
+                return -1;
+
+            // Neither empty - sort by numeric value
+            int comparison = bookX.RatingsSortValue.CompareTo(bookY.RatingsSortValue);
+            
+            // Apply direction
+            if (_direction == ListSortDirection.Descending)
+                comparison = -comparison;
+
+            // If ratings count are equal, compare by rating value
+            if (comparison == 0)
+            {
+                comparison = bookX.RatingSortValue.CompareTo(bookY.RatingSortValue);
                 if (_direction == ListSortDirection.Descending)
                     comparison = -comparison;
             }

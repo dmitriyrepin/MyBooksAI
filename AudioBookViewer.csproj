@@ -13,6 +13,7 @@
     <None Update="ALE-spreadsheet-library-v1.csv">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <Resource Include="filter-icon.png" />
   </ItemGroup>
 
 </Project>

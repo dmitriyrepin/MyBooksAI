@@ -24,30 +24,110 @@
 
             <TextBlock Grid.Row="0" Text="Audio Books" FontSize="24" FontWeight="Bold" Margin="0,0,0,10"/>
             
-            <TextBox Grid.Row="1" x:Name="SearchBox" 
-                     Padding="5" 
-                     Margin="0,0,0,10"
-                     TextChanged="SearchBox_TextChanged">
-                <TextBox.Style>
-                    <Style TargetType="TextBox">
+            <!-- Combined Search and Filter Toolbar (Mutually Exclusive) -->
+            <ToolBar Grid.Row="1" Margin="0,0,0,10" Background="Transparent">
+                <ToolBar.Resources>
+                    <Style x:Key="FilterToggleButtonStyle" TargetType="ToggleButton">
+                        <Setter Property="Padding" Value="5"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Foreground" Value="Black"/>
+                        <Setter Property="FontWeight" Value="Normal"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border BorderBrush="Transparent"
+                                            BorderThickness="0"
+                                            Padding="{TemplateBinding Padding}"
+                                            CornerRadius="3"
+                                            Background="Transparent">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Border x:Name="IconBackground" 
+                                                    Background="LightGray"
+                                                    CornerRadius="2"
+                                                    Padding="3,1">
+                                                <TextBlock Text="≈" 
+                                                          FontSize="16" 
+                                                          FontWeight="Bold"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="White"/>
+                                            </Border>
+                                            <ContentPresenter VerticalAlignment="Center" Margin="5,0,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsChecked" Value="True">
+                                            <Setter TargetName="IconBackground" Property="Background" Value="LimeGreen"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
                         <Style.Triggers>
-                            <Trigger Property="Text" Value="">
-                                <Setter Property="Background">
-                                    <Setter.Value>
-                                        <VisualBrush Stretch="None" AlignmentX="Left">
-                                            <VisualBrush.Visual>
-                                                <TextBlock Text="Search by title or author..." 
-                                                          Foreground="LightGray" 
-                                                          Margin="5,0,0,0"/>
-                                            </VisualBrush.Visual>
-                                        </VisualBrush>
-                                    </Setter.Value>
-                                </Setter>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="FontWeight" Value="Bold"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
                             </Trigger>
                         </Style.Triggers>
                     </Style>
-                </TextBox.Style>
-            </TextBox>
+                </ToolBar.Resources>
+                
+                <Image Source="filter-icon.png" Width="20" Height="20" VerticalAlignment="Center" Margin="5,0,5,0"/>
+                <TextBlock Text="Filter:" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <ToggleButton x:Name="SameAuthorToggle" 
+                              Content="Author" 
+                              Style="{StaticResource FilterToggleButtonStyle}"
+                              Click="SameAuthorToggle_Click"
+                              IsEnabled="False"/>
+                <ToggleButton x:Name="SameSeriesToggle" 
+                              Content="Series" 
+                              Style="{StaticResource FilterToggleButtonStyle}"
+                              Margin="5,0,0,0"
+                              Click="SameSeriesToggle_Click"
+                              IsEnabled="False"/>
+                <Border x:Name="SearchIconBackground" 
+                        Background="LightGray"
+                        CornerRadius="2"
+                        Padding="3,1"
+                        VerticalAlignment="Center"
+                        Margin="10,0,5,0"
+                        Cursor="Hand"
+                        MouseDown="SearchIcon_MouseDown">
+                    <TextBlock Text="≈" 
+                              FontSize="16" 
+                              FontWeight="Bold"
+                              VerticalAlignment="Center"
+                              Foreground="White"/>
+                </Border>
+                <TextBox x:Name="SearchBox" 
+                         Width="250"
+                         Padding="5" 
+                         VerticalAlignment="Center"
+                         TextChanged="SearchBox_TextChanged">
+                    <TextBox.Style>
+                        <Style TargetType="TextBox">
+                            <Style.Triggers>
+                                <Trigger Property="Text" Value="">
+                                    <Setter Property="Background">
+                                        <Setter.Value>
+                                            <VisualBrush Stretch="None" AlignmentX="Left">
+                                                <VisualBrush.Visual>
+                                                    <TextBlock Text="Search by title or author..." 
+                                                              Foreground="LightGray" 
+                                                              Margin="5,0,0,0"/>
+                                                </VisualBrush.Visual>
+                                            </VisualBrush>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBox.Style>
+                </TextBox>
+            </ToolBar>
 
             <DataGrid Grid.Row="2" x:Name="BookListBox" 
                       SelectionChanged="BookListBox_SelectionChanged"
@@ -114,6 +194,9 @@
                     <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*" SortMemberPath="Title"/>
                     <DataGridTextColumn Header="Series" Binding="{Binding Series}" Width="180" SortMemberPath="Series"/>
                     <DataGridTextColumn Header="Book #" Binding="{Binding BookNumber}" Width="70" SortMemberPath="BookNumber"/>
+                    <DataGridTextColumn Header="Narrator" Binding="{Binding Narrator}" Width="150" SortMemberPath="Narrator"/>
+                    <DataGridTextColumn Header="Stars" Binding="{Binding Rating}" Width="60" SortMemberPath="Rating"/>
+                    <DataGridTextColumn Header="Ratings" Binding="{Binding Ratings}" Width="70" SortMemberPath="Ratings"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

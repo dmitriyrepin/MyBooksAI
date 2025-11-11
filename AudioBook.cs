@@ -230,8 +230,21 @@ namespace AudioBookViewer
             {
                 rating = value;
                 OnPropertyChanged(nameof(Rating));
+                
+                // Update the numeric value for sorting
+                if (double.TryParse(value, out double numericValue))
+                {
+                    RatingSortValue = numericValue;
+                }
+                else
+                {
+                    RatingSortValue = double.MaxValue; // Put empty/non-numeric values at the end
+                }
             }
         }
+
+        // Numeric value for proper sorting - empty ratings go to end
+        public double RatingSortValue { get; private set; } = double.MaxValue;
 
         // CSV Column 18: Ratings
         private string ratings = string.Empty;
@@ -242,8 +255,21 @@ namespace AudioBookViewer
             {
                 ratings = value;
                 OnPropertyChanged(nameof(Ratings));
+                
+                // Update the numeric value for sorting
+                if (double.TryParse(value, out double numericValue))
+                {
+                    RatingsSortValue = numericValue;
+                }
+                else
+                {
+                    RatingsSortValue = double.MaxValue; // Put empty/non-numeric values at the end
+                }
             }
         }
+
+        // Numeric value for proper sorting - empty ratings count go to end
+        public double RatingsSortValue { get; private set; } = double.MaxValue;
 
         // CSV Column 19: Favorite
         private string favorite = string.Empty;
