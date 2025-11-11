@@ -180,9 +180,46 @@ namespace AudioBookViewer
             get => progress;
             set
             {
-                progress = value;
+                // Map the incoming value to standardized progress values
+                string normalizedValue = MapProgressValue(value);
+                progress = normalizedValue;
                 OnPropertyChanged(nameof(Progress));
+                
+                // Update numeric value for sorting
+                ProgressValue = normalizedValue switch
+                {
+                    "New" => 0,
+                    "Reading" => 1,
+                    "Finished" => 2,
+                    "Multiread" => 3,
+                    _ => 0
+                };
             }
+        }
+
+        // Numeric value for proper sorting
+        public int ProgressValue { get; private set; } = 0;
+
+        private string MapProgressValue(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value) || 
+                value.Equals("(not Specified)", StringComparison.OrdinalIgnoreCase))
+            {
+                return "New";
+            }
+
+            // Check for exact matches (case-insensitive)
+            if (value.Equals("New", StringComparison.OrdinalIgnoreCase))
+                return "New";
+            if (value.Equals("Reading", StringComparison.OrdinalIgnoreCase))
+                return "Reading";
+            if (value.Equals("Finished", StringComparison.OrdinalIgnoreCase))
+                return "Finished";
+            if (value.Equals("Multiread", StringComparison.OrdinalIgnoreCase))
+                return "Multiread";
+
+            // For any other text, use "Reading"
+            return "Reading";
         }
 
         // CSV Column 14: Release Date

@@ -88,6 +88,23 @@
                               Margin="5,0,0,0"
                               Click="SameSeriesToggle_Click"
                               IsEnabled="False"/>
+                <ToggleButton x:Name="SameNarratorToggle" 
+                              Content="Narrator" 
+                              Style="{StaticResource FilterToggleButtonStyle}"
+                              Margin="5,0,0,0"
+                              Click="SameNarratorToggle_Click"
+                              IsEnabled="False"/>
+                <ComboBox x:Name="ProgressFilterComboBox"
+                          Width="100"
+                          VerticalAlignment="Center"
+                          Margin="10,0,0,0"
+                          SelectionChanged="ProgressFilterComboBox_SelectionChanged">
+                    <ComboBoxItem Content="All Progress" IsSelected="True"/>
+                    <ComboBoxItem Content="New"/>
+                    <ComboBoxItem Content="Reading"/>
+                    <ComboBoxItem Content="Finished"/>
+                    <ComboBoxItem Content="Multiread"/>
+                </ComboBox>
                 <Border x:Name="SearchIconBackground" 
                         Background="LightGray"
                         CornerRadius="2"
@@ -197,6 +214,7 @@
                     <DataGridTextColumn Header="Narrator" Binding="{Binding Narrator}" Width="150" SortMemberPath="Narrator"/>
                     <DataGridTextColumn Header="Stars" Binding="{Binding Rating}" Width="60" SortMemberPath="Rating"/>
                     <DataGridTextColumn Header="Ratings" Binding="{Binding Ratings}" Width="70" SortMemberPath="Ratings"/>
+                    <DataGridTextColumn Header="Progress" Binding="{Binding Progress}" Width="80" SortMemberPath="Progress"/>
                 </DataGrid.Columns>
             </DataGrid>
         </Grid>

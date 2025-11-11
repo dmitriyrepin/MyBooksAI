@@ -293,6 +293,7 @@ namespace AudioBookViewer
                 // Enable filter toggle buttons
                 SameAuthorToggle.IsEnabled = true;
                 SameSeriesToggle.IsEnabled = !string.IsNullOrWhiteSpace(selectedBook.Series);
+                SameNarratorToggle.IsEnabled = !string.IsNullOrWhiteSpace(selectedBook.Narrator);
                 
                 // Update search icon color (removes light green when clicking on book)
                 UpdateSearchIconColor();
@@ -307,6 +308,7 @@ namespace AudioBookViewer
                 // Disable filter toggle buttons
                 SameAuthorToggle.IsEnabled = false;
                 SameSeriesToggle.IsEnabled = false;
+                SameNarratorToggle.IsEnabled = false;
                 
                 // Update search icon color
                 UpdateSearchIconColor();
@@ -320,14 +322,16 @@ namespace AudioBookViewer
             // Update search icon background color
             UpdateSearchIconColor();
             
-            // If user types in search box, uncheck both filter toggles (mutually exclusive)
-            if (!string.IsNullOrWhiteSpace(SearchBox.Text))
+            // If user types in search box, uncheck all filter toggles and reset progress filter (mutually exclusive)
+            if (!string.IsNullOrWhiteSpace(SearchBox?.Text))
             {
                 isUpdatingFilters = true;
-                SameAuthorToggle.IsChecked = false;
-                SameSeriesToggle.IsChecked = false;
+                if (SameAuthorToggle != null) SameAuthorToggle.IsChecked = false;
+                if (SameSeriesToggle != null) SameSeriesToggle.IsChecked = false;
+                if (SameNarratorToggle != null) SameNarratorToggle.IsChecked = false;
+                if (ProgressFilterComboBox != null) ProgressFilterComboBox.SelectedIndex = 0; // Reset to "All Progress"
                 // Clear selection when using search filter
-                BookListBox.SelectedItem = null;
+                if (BookListBox != null) BookListBox.SelectedItem = null;
                 isUpdatingFilters = false;
             }
             
@@ -396,7 +400,34 @@ namespace AudioBookViewer
                         }
                     }
                 }
-                // Priority 3: Search filter - filter by title or author text search
+                // Priority 3: "Same Narrator" filter - filter by narrator ONLY
+                else if (SameNarratorToggle.IsChecked == true)
+                {
+                    if (currentSelection != null)
+                    {
+                        string bookNarrator = book.Narrator?.Trim() ?? "";
+                        string filterNarrator = currentSelection.Narrator?.Trim() ?? "";
+                        
+                        if (!string.IsNullOrWhiteSpace(filterNarrator) &&
+                            string.Equals(bookNarrator, filterNarrator, StringComparison.OrdinalIgnoreCase))
+                        {
+                            includeBook = true;
+                        }
+                    }
+                }
+                // Priority 4: Progress filter - filter by progress status
+                else if (ProgressFilterComboBox?.SelectedIndex > 0)
+                {
+                    var selectedProgress = (ProgressFilterComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                    if (!string.IsNullOrEmpty(selectedProgress))
+                    {
+                        if (string.Equals(book.Progress, selectedProgress, StringComparison.OrdinalIgnoreCase))
+                        {
+                            includeBook = true;
+                        }
+                    }
+                }
+                // Priority 5: Search filter - filter by title or author text search
                 else if (!string.IsNullOrWhiteSpace(SearchBox.Text))
                 {
                     string searchText = SearchBox.Text.ToLower();
@@ -454,6 +485,8 @@ namespace AudioBookViewer
             {
                 // Turn off other filters
                 SameSeriesToggle.IsChecked = false;
+                SameNarratorToggle.IsChecked = false;
+                ProgressFilterComboBox.SelectedIndex = 0; // Reset to "All Progress"
                 SearchBox.Text = ""; // Clear search box
             }
             
@@ -487,10 +520,69 @@ namespace AudioBookViewer
             {
                 // Turn off other filters
                 SameAuthorToggle.IsChecked = false;
+                SameNarratorToggle.IsChecked = false;
+                ProgressFilterComboBox.SelectedIndex = 0; // Reset to "All Progress"
                 SearchBox.Text = ""; // Clear search box
             }
             
             isUpdatingFilters = false;
+            ApplyFilters();
+        }
+
+        private void SameNarratorToggle_Click(object sender, RoutedEventArgs e)
+        {
+            if (isUpdatingFilters) return; // Prevent recursive calls
+            
+            // Check if a book is selected when enabling the filter
+            if (SameNarratorToggle.IsChecked == true)
+            {
+                var selectedBook = BookListBox.SelectedItem as AudioBook;
+                if (selectedBook == null)
+                {
+                    MessageBox.Show("Please select a book first to filter by narrator.", 
+                                    "No Book Selected", 
+                                    MessageBoxButton.OK, 
+                                    MessageBoxImage.Warning);
+                    SameNarratorToggle.IsChecked = false;
+                    return;
+                }
+            }
+            
+            isUpdatingFilters = true;
+            
+            // Make toggles mutually exclusive with each other and with search
+            if (SameNarratorToggle.IsChecked == true)
+            {
+                // Turn off other filters
+                SameAuthorToggle.IsChecked = false;
+                SameSeriesToggle.IsChecked = false;
+                ProgressFilterComboBox.SelectedIndex = 0; // Reset to "All Progress"
+                SearchBox.Text = ""; // Clear search box
+            }
+            
+            isUpdatingFilters = false;
+            ApplyFilters();
+        }
+
+        private void ProgressFilterComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            if (isUpdatingFilters) return; // Prevent recursive calls
+            if (ProgressFilterComboBox == null || BookListBox == null || SearchBox == null) return; // Control not initialized yet
+            if (!IsLoaded) return; // Window not fully loaded yet
+            
+            // If a specific progress filter is selected (not "All Progress"), turn off other filters
+            if (ProgressFilterComboBox.SelectedIndex > 0)
+            {
+                isUpdatingFilters = true;
+                SameAuthorToggle.IsChecked = false;
+                SameSeriesToggle.IsChecked = false;
+                SameNarratorToggle.IsChecked = false;
+                SearchBox.Text = ""; // Clear search box
+                // Clear selection when using progress filter
+                BookListBox.SelectedItem = null;
+                isUpdatingFilters = false;
+            }
+            
             ApplyFilters();
         }
 
@@ -577,6 +669,13 @@ namespace AudioBookViewer
                 {
                     listCollectionView.CustomSort = new RatingsComparer(direction);
                 }
+            }
+            else if (sortPropertyName == "Progress")
+            {
+                // Primary: ProgressValue (numeric 0-3), Secondary: Author, Tertiary: Title
+                view.SortDescriptions.Add(new SortDescription("ProgressValue", direction));
+                view.SortDescriptions.Add(new SortDescription("Author", direction));
+                view.SortDescriptions.Add(new SortDescription("Title", direction));
             }
 
             // Update the column sort direction indicator
@@ -736,12 +835,10 @@ namespace AudioBookViewer
             if (_direction == ListSortDirection.Descending)
                 comparison = -comparison;
 
-            // If ratings are equal, compare by ratings count
+            // If ratings are equal, compare by ratings count (always descending - higher counts first)
             if (comparison == 0)
             {
-                comparison = bookX.RatingsSortValue.CompareTo(bookY.RatingsSortValue);
-                if (_direction == ListSortDirection.Descending)
-                    comparison = -comparison;
+                comparison = bookY.RatingsSortValue.CompareTo(bookX.RatingsSortValue);
             }
 
             // If still equal, compare by title
